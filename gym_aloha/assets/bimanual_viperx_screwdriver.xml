@@ -1,0 +1,86 @@
+<mujoco>
+    <include file="scene.xml"/>
+    <include file="vx300s_dependencies.xml"/>
+
+    <asset>
+        <!-- Custom Tool Meshes (1.5x size) -->
+        <mesh name="flat_bolt" file="meshes/custom/flat_bolt.stl" scale="0.0015 0.0015 0.0015"/>
+        <mesh name="flat_screwdriver" file="meshes/custom/flat_screwdriver.stl" scale="0.0015 0.0015 0.0015"/>
+        <mesh name="nut" file="meshes/custom/nut.stl" scale="0.0015 0.0015 0.0015"/>
+        <mesh name="plate_mesh" file="meshes/custom/plate.stl" scale="0.0015 0.0015 0.0015"/>
+
+        <!-- Materials -->
+        <material name="screwdriver_material" rgba="1.0 0.5 0.0 1.0"/>  <!-- Orange -->
+        <material name="bolt_material" rgba="1.0 0.5 0.0 1.0"/>  <!-- Orange -->
+        <material name="nut_material" rgba="1.0 0.5 0.0 1.0"/>  <!-- Orange -->
+        <material name="plate_material" rgba="0.0 0.8 0.8 1.0"/>  <!-- Metallic Cyan -->
+    </asset>
+
+    <worldbody>
+        <include file="vx300s_left.xml" />
+        <include file="vx300s_right.xml" />
+
+        <!-- Plate - positioned on the table (1.5x size) -->
+        <body name="plate" pos="0.08 0.58 0.025">
+            <!-- Add a collision box under the plate to prevent objects from falling through -->
+            <geom condim="6" solimp="0.6 0.8 0.01" solref="0.02 1" friction="1 0.05 0.001" pos="0 0 -0.01" type="box" size="0.2 0.2 0.01" rgba="0.0 0.0 0.0 0.0" contype="1" conaffinity="1"/>
+            <geom condim="6" solimp="0.6 0.8 0.01" solref="0.02 1" friction="1 0.05 0.001" pos="0 0 0" type="mesh" mesh="plate_mesh" name="plate" rgba="0.0 0.8 0.8 1.0" material="plate_material" contype="1" conaffinity="1"/>
+            <geom condim="6" solimp="0.6 0.8 0.01" solref="0.02 1" friction="1 0.05 0.001" pos="0 0 0.015" size="0.024 0.015" type="cylinder" name="plate_hole" rgba="0 0 0 0" contype="1" conaffinity="1"/>
+            <inertial pos="0 0 0" mass="1.5" diaginertia="0.04 0.04 0.04"/>
+        </body>
+
+        <!-- Screwdriver -->
+        <body name="screwdriver" pos="0.23 0.58 0.2">
+            <joint name="screwdriver_joint" type="free" frictionloss="0.1" />
+            <inertial pos="0 0 0" mass="0.15" diaginertia="0.004 0.004 0.004" />
+            <!-- Add a collision box to improve physics stability -->
+            <geom condim="6" solimp="0.6 0.8 0.01" solref="0.02 1" friction="1 0.1 0.1" pos="0 0 0" type="box" size="0.008 0.008 0.03" rgba="0.0 0.0 0.0 0.0" contype="1" conaffinity="1"/>
+            <geom condim="6" solimp="0.6 0.8 0.01" solref="0.02 1" friction="1 0.1 0.1" pos="0 0 0" type="mesh" mesh="flat_screwdriver" name="screwdriver" rgba="1.0 0.5 0.0 1.0" material="screwdriver_material" contype="1" conaffinity="1"/>
+        </body>
+
+        <!-- Bolt -->
+        <body name="bolt" pos="-0.07 0.58 0.2">
+            <joint name="bolt_joint" type="free" frictionloss="0.1" />
+            <inertial pos="0 0 0" mass="0.15" diaginertia="0.004 0.004 0.004" />
+            <!-- Add a collision box to improve physics stability -->
+            <geom condim="6" solimp="0.6 0.8 0.01" solref="0.02 1" friction="1 0.1 0.1" pos="0 0 0" type="box" size="0.008 0.008 0.025" rgba="0.0 0.0 0.0 0.0" contype="1" conaffinity="1"/>
+            <geom condim="6" solimp="0.6 0.8 0.01" solref="0.02 1" friction="1 0.1 0.1" pos="0 0 0" type="mesh" mesh="flat_bolt" name="bolt" rgba="1.0 0.5 0.0 1.0" material="bolt_material" contype="1" conaffinity="1"/>
+        </body>
+
+        <!-- Nut -->
+        <body name="nut" pos="-0.07 0.58 0.25">
+            <joint name="nut_joint" type="free" frictionloss="0.1"/>
+            <inertial pos="0 0 0" mass="0.15" diaginertia="0.004 0.004 0.004"/>
+            <!-- Add a collision box to improve physics stability -->
+            <geom condim="6" solimp="0.6 0.8 0.01" solref="0.02 1" friction="1 0.1 0.1" pos="0 0 0" type="box" size="0.012 0.012 0.008" rgba="0.0 0.0 0.0 0.0" contype="1" conaffinity="1"/>
+            <geom condim="6" solimp="0.6 0.8 0.01" solref="0.02 1" friction="1 0.1 0.1" pos="0 0 0" type="mesh" mesh="nut" name="nut" rgba="1.0 0.5 0.0 1.0" material="nut_material" contype="1" conaffinity="1"/>
+        </body>
+
+    </worldbody>
+
+    <actuator>
+        <position ctrllimited="true" ctrlrange="-3.14158 3.14158" joint="vx300s_left/waist" kp="800"  user="1" forcelimited="true" forcerange="-150 150"/>
+        <position ctrllimited="true" ctrlrange="-1.85005 1.25664" joint="vx300s_left/shoulder" kp="1600"  user="1" forcelimited="true" forcerange="-300 300"/>
+        <position ctrllimited="true" ctrlrange="-1.76278 1.6057" joint="vx300s_left/elbow" kp="800"  user="1" forcelimited="true" forcerange="-100 100"/>
+        <position ctrllimited="true" ctrlrange="-3.14158 3.14158" joint="vx300s_left/forearm_roll" kp="10"  user="1" forcelimited="true" forcerange="-100 100"/>
+        <position ctrllimited="true" ctrlrange="-1.8675 2.23402" joint="vx300s_left/wrist_angle" kp="50"  user="1"/>
+        <position ctrllimited="true" ctrlrange="-3.14158 3.14158" joint="vx300s_left/wrist_rotate" kp="20"  user="1"/>
+        <position ctrllimited="true" ctrlrange="0.021 0.057" joint="vx300s_left/left_finger" kp="200"  user="1"/>
+        <position ctrllimited="true" ctrlrange="-0.057 -0.021" joint="vx300s_left/right_finger" kp="200"  user="1"/>
+
+        <position ctrllimited="true" ctrlrange="-3.14158 3.14158" joint="vx300s_right/waist" kp="800"  user="1" forcelimited="true" forcerange="-150 150"/>
+        <position ctrllimited="true" ctrlrange="-1.85005 1.25664" joint="vx300s_right/shoulder" kp="1600"  user="1" forcelimited="true" forcerange="-300 300"/>
+        <position ctrllimited="true" ctrlrange="-1.76278 1.6057" joint="vx300s_right/elbow" kp="800"  user="1" forcelimited="true" forcerange="-100 100"/>
+        <position ctrllimited="true" ctrlrange="-3.14158 3.14158" joint="vx300s_right/forearm_roll" kp="10"  user="1" forcelimited="true" forcerange="-100 100"/>
+        <position ctrllimited="true" ctrlrange="-1.8675 2.23402" joint="vx300s_right/wrist_angle" kp="50"  user="1"/>
+        <position ctrllimited="true" ctrlrange="-3.14158 3.14158" joint="vx300s_right/wrist_rotate" kp="20"  user="1"/>
+        <position ctrllimited="true" ctrlrange="0.021 0.057" joint="vx300s_right/left_finger" kp="200"  user="1"/>
+        <position ctrllimited="true" ctrlrange="-0.057 -0.021" joint="vx300s_right/right_finger" kp="200"  user="1"/>
+
+    </actuator>
+
+    <keyframe>
+        <key qpos="0 -0.96 1.16 0 -0.3 0 0.024 -0.024  0 -0.96 1.16 0 -0.3 0 0.024 -0.024  0.23 0.58 0.2 1 0 0 0  -0.07 0.58 0.2 1 0 0 0  -0.07 0.58 0.25 1 0 0 0"/>
+    </keyframe>
+
+</mujoco>

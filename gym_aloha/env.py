@@ -10,12 +10,12 @@ from gym_aloha.constants import (
     DT,
     JOINTS,
 )
-from gym_aloha.tasks.sim import BOX_POSE, InsertionTask, TransferCubeTask
+from gym_aloha.tasks.sim import BOX_POSE, InsertionTask, TransferCubeTask, ScrewdriverTask, CoordinatedScrewingTask
 from gym_aloha.tasks.sim_end_effector import (
     InsertionEndEffectorTask,
     TransferCubeEndEffectorTask,
 )
-from gym_aloha.utils import sample_box_pose, sample_insertion_pose
+from gym_aloha.utils import sample_box_pose, sample_insertion_pose, sample_screwdriver_pose
 
 
 class AlohaEnv(gym.Env):
@@ -117,6 +117,14 @@ class AlohaEnv(gym.Env):
             xml_path = ASSETS_DIR / "bimanual_viperx_insertion.xml"
             physics = mujoco.Physics.from_xml_path(str(xml_path))
             task = InsertionTask()
+        elif task_name == "screwdriver":
+            xml_path = ASSETS_DIR / "bimanual_viperx_screwdriver.xml"
+            physics = mujoco.Physics.from_xml_path(str(xml_path))
+            task = ScrewdriverTask()
+        elif task_name == "coordinated_screwing":
+            xml_path = ASSETS_DIR / "bimanual_viperx_screwdriver.xml"
+            physics = mujoco.Physics.from_xml_path(str(xml_path))
+            task = CoordinatedScrewingTask()
         elif task_name == "end_effector_transfer_cube":
             raise NotImplementedError()
             xml_path = ASSETS_DIR / "bimanual_viperx_end_effector_transfer_cube.xml"
@@ -160,6 +168,9 @@ class AlohaEnv(gym.Env):
             BOX_POSE[0] = sample_box_pose(seed)  # used in sim reset
         elif self.task == "insertion":
             BOX_POSE[0] = np.concatenate(sample_insertion_pose(seed))  # used in sim reset
+        elif self.task in ["screwdriver", "coordinated_screwing"]:
+            screwdriver_pose, bolt_pose, nut_pose, plate_pose = sample_screwdriver_pose(seed)
+            BOX_POSE[0] = np.concatenate([screwdriver_pose, bolt_pose, nut_pose])  # used in sim reset
         else:
             raise ValueError(self.task)
 

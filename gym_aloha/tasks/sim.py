@@ -217,3 +217,186 @@ class InsertionTask(BimanualViperXTask):
         if pin_touched:  # successful insertion
             reward = 4
         return reward
+
+
+class ScrewdriverTask(BimanualViperXTask):
+    def __init__(self, random=None):
+        super().__init__(random=random)
+        self.max_reward = 4
+
+    def initialize_episode(self, physics):
+        """Sets the state of the environment at the start of each episode."""
+        # TODO Notice: this function does not randomize the env configuration. Instead, set BOX_POSE from outside
+        # reset qpos, control and object positions
+        with physics.reset_context():
+            physics.named.data.qpos[:16] = START_ARM_POSE
+            np.copyto(physics.data.ctrl, START_ARM_POSE)
+            assert BOX_POSE[0] is not None
+            # Set positions for screwdriver, bolt, and nut (plate is fixed)
+            physics.named.data.qpos[-7 * 3 :] = BOX_POSE[0][:21]  # three objects with free joints
+        super().initialize_episode(physics)
+
+    @staticmethod
+    def get_env_state(physics):
+        env_state = physics.data.qpos.copy()[16:]
+        return env_state
+
+    def get_reward(self, physics):
+        # Return reward based on task progress
+        all_contact_pairs = []
+        for i_contact in range(physics.data.ncon):
+            id_geom_1 = physics.data.contact[i_contact].geom1
+            id_geom_2 = physics.data.contact[i_contact].geom2
+            name_geom_1 = physics.model.id2name(id_geom_1, "geom")
+            name_geom_2 = physics.model.id2name(id_geom_2, "geom")
+            contact_pair = (name_geom_1, name_geom_2)
+            all_contact_pairs.append(contact_pair)
+
+        # Check contacts between objects and grippers
+        touch_right_gripper_screwdriver = ("screwdriver", "vx300s_right/10_right_gripper_finger") in all_contact_pairs
+        touch_left_gripper_bolt = ("bolt", "vx300s_left/10_left_gripper_finger") in all_contact_pairs
+        touch_left_gripper_nut = ("nut", "vx300s_left/10_left_gripper_finger") in all_contact_pairs
+
+        # Check contacts with table
+        screwdriver_touch_table = ("screwdriver", "table") in all_contact_pairs
+        bolt_touch_table = ("bolt", "table") in all_contact_pairs
+        nut_touch_table = ("nut", "table") in all_contact_pairs
+
+        # Check contact between objects
+        screwdriver_touch_bolt = ("screwdriver", "bolt") in all_contact_pairs
+        nut_touch_bolt = ("nut", "bolt") in all_contact_pairs
+
+        # Check if bolt is in plate
+        bolt_in_plate = ("bolt", "plate_hole") in all_contact_pairs
+
+        # Define reward stages
+        reward = 0
+        if (touch_left_gripper_bolt or touch_left_gripper_nut) and touch_right_gripper_screwdriver:  # touch both
+            reward = 1
+        if (
+            (touch_left_gripper_bolt or touch_left_gripper_nut) and touch_right_gripper_screwdriver and
+            (not screwdriver_touch_table) and (not bolt_touch_table) and (not nut_touch_table)
+        ):  # grasp both
+            reward = 2
+        if (screwdriver_touch_bolt or nut_touch_bolt) and (not screwdriver_touch_table) and (not bolt_touch_table) and (not nut_touch_table):  # objects touching
+            reward = 3
+        if bolt_in_plate:  # successful insertion of bolt into plate
+            reward = 4
+        return reward
+
+
+class CoordinatedScrewingTask(BimanualViperXTask):
+    def __init__(self, random=None):
+        super().__init__(random=random)
+        self.max_reward = 7  # More stages for the coordinated task
+        self.nut_placed = False
+        self.bolt_placed = False
+        self.screwdriver_aligned = False
+        self.screwing_started = False
+
+    def initialize_episode(self, physics):
+        """Sets the state of the environment at the start of each episode."""
+        # Reset task state
+        self.nut_placed = False
+        self.bolt_placed = False
+        self.screwdriver_aligned = False
+        self.screwing_started = False
+
+        # Reset physics
+        with physics.reset_context():
+            physics.named.data.qpos[:16] = START_ARM_POSE
+            np.copyto(physics.data.ctrl, START_ARM_POSE)
+            assert BOX_POSE[0] is not None
+            # Set positions for screwdriver, bolt, and nut (plate is fixed)
+            physics.named.data.qpos[-7 * 3 :] = BOX_POSE[0][:21]  # three objects with free joints
+        super().initialize_episode(physics)
+
+    @staticmethod
+    def get_env_state(physics):
+        env_state = physics.data.qpos.copy()[16:]
+        return env_state
+
+    def get_reward(self, physics):
+        # Return reward based on task progress
+        all_contact_pairs = []
+        for i_contact in range(physics.data.ncon):
+            id_geom_1 = physics.data.contact[i_contact].geom1
+            id_geom_2 = physics.data.contact[i_contact].geom2
+            name_geom_1 = physics.model.id2name(id_geom_1, "geom")
+            name_geom_2 = physics.model.id2name(id_geom_2, "geom")
+            contact_pair = (name_geom_1, name_geom_2)
+            all_contact_pairs.append(contact_pair)
+
+        # Check contacts between objects and grippers
+        touch_right_gripper_screwdriver = ("screwdriver", "vx300s_right/10_right_gripper_finger") in all_contact_pairs
+        touch_left_gripper_bolt = ("bolt", "vx300s_left/10_left_gripper_finger") in all_contact_pairs
+        touch_left_gripper_nut = ("nut", "vx300s_left/10_left_gripper_finger") in all_contact_pairs
+
+        # Check contacts with plate and table
+        nut_touch_plate = ("nut", "plate") in all_contact_pairs
+        bolt_touch_nut = ("bolt", "nut") in all_contact_pairs
+        screwdriver_touch_bolt = ("screwdriver", "bolt") in all_contact_pairs
+
+        # Check if objects are on the table (failure condition)
+        screwdriver_touch_table = ("screwdriver", "table") in all_contact_pairs
+        bolt_touch_table = ("bolt", "table") in all_contact_pairs
+        nut_touch_table = ("nut", "table") in all_contact_pairs
+
+        # Check if bolt is in plate hole
+        bolt_in_plate = ("bolt", "plate_hole") in all_contact_pairs
+
+        # Get positions for checking alignment
+        nut_pos = physics.named.data.xpos['nut']
+        bolt_pos = physics.named.data.xpos['bolt']
+        screwdriver_pos = physics.named.data.xpos['screwdriver']
+        plate_pos = physics.named.data.xpos['plate']
+
+        # Check if nut is at center of plate (approximately)
+        nut_at_center = np.linalg.norm(nut_pos[:2] - plate_pos[:2]) < 0.03
+
+        # Check if bolt is above nut and perpendicular
+        bolt_above_nut = (bolt_pos[2] > nut_pos[2]) and (np.linalg.norm(bolt_pos[:2] - nut_pos[:2]) < 0.02)
+
+        # Check if screwdriver is aligned with bolt
+        screwdriver_aligned_with_bolt = (np.linalg.norm(screwdriver_pos[:2] - bolt_pos[:2]) < 0.02)
+
+        # Define reward stages for the coordinated task
+        reward = 0
+
+        # Stage 1: Left arm grabs nut, right arm grabs screwdriver
+        if touch_left_gripper_nut and touch_right_gripper_screwdriver:
+            reward = 1
+
+        # Stage 2: Nut placed flat at center of plate
+        if nut_at_center and nut_touch_plate and not self.nut_placed:
+            self.nut_placed = True
+            reward = 2
+
+        # Stage 3: Left arm grabs bolt after placing nut
+        if self.nut_placed and touch_left_gripper_bolt:
+            reward = 3
+
+        # Stage 4: Bolt positioned perpendicular to nut
+        if self.nut_placed and bolt_above_nut and bolt_touch_nut and not self.bolt_placed:
+            self.bolt_placed = True
+            reward = 4
+
+        # Stage 5: Right arm positions screwdriver above bolt
+        if self.bolt_placed and screwdriver_aligned_with_bolt and not self.screwdriver_aligned:
+            self.screwdriver_aligned = True
+            reward = 5
+
+        # Stage 6: Screwdriver contacts bolt head
+        if self.screwdriver_aligned and screwdriver_touch_bolt and not self.screwing_started:
+            self.screwing_started = True
+            reward = 6
+
+        # Stage 7: Successful screwing (bolt in plate hole)
+        if self.screwing_started and bolt_in_plate:
+            reward = 7
+
+        # Failure conditions (objects dropped on table)
+        if screwdriver_touch_table or bolt_touch_table or nut_touch_table:
+            reward = 0
+
+        return reward
